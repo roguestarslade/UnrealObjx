@@ -1,0 +1,5 @@
+objaverse
+faiss-cpu
+sentence-transformers
+huggingface_hub
+tqdm
