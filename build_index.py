@@ -1,54 +1,52 @@
-import objaverse
-import faiss
+import sys
 import json
 from tqdm import tqdm
+import faiss
+import pandas as pd
 from sentence_transformers import SentenceTransformer
 
+# Add module path
+sys.path.insert(0, "/objaverse-xl")
+from objaverse import xl
+
 # ===== Config =====
-INDEX_SIZE = 1000  # Adjust this for more/fewer models
-MODEL_NAME = "clip-ViT-B-32"  # CLIP model
+INDEX_SIZE = 1000
+MODEL_NAME = "clip-ViT-B-32"
 INDEX_PATH = "objaverse.index"
 UID_MAP_PATH = "uid_map.json"
 
-# ===== Load Objaverse metadata =====
-print("📦 Loading Objaverse metadata...")
-uids = objaverse.load_uids()
-metadata = objaverse.load_metadata()
+# ===== Load metadata =====
+print("📦 Loading metadata from Objaverse-XL...")
+df = xl.get_annotations(download_dir="/tmp/objaverse-xl")
+uids = df["fileIdentifier"].tolist()[:INDEX_SIZE]
 
-# ===== Embed text descriptions =====
+# ===== Prepare model & buffers =====
 model = SentenceTransformer(MODEL_NAME)
-uid_map = []
-texts = []
+texts, uid_map = [], []
 
-print(f"🧠 Embedding {INDEX_SIZE} objects using {MODEL_NAME}...")
-for uid in tqdm(uids[:INDEX_SIZE]):
-    entry = metadata.get(uid, {})
-    label = ""
+print(f"🧠 Embedding {len(uids)} objects with {MODEL_NAME}...")
 
-    # Build semantic string for embedding
-    if "tags" in entry:
-        label += " ".join(entry["tags"])
-    if "name" in entry:
-        label += f" {entry['name']}"
-    if "source" in entry:
-        label += f" from {entry['source']}"
+for uid in tqdm(uids):
+    entry = df[df["fileIdentifier"] == uid].iloc[0]
+    raw_meta = entry["metadata"]
 
-    if not label.strip():
-        continue  # skip empty entries
+    try:
+        meta = json.loads(raw_meta) if isinstance(raw_meta, str) else {}
+    except json.JSONDecodeError:
+        meta = {}
 
-    texts.append(label)
+    text = meta.get("name") or meta.get("description") or f"object {uid}"
+    texts.append(text)
     uid_map.append(uid)
 
+# ===== Encode and build FAISS index =====
 embeddings = model.encode(texts, show_progress_bar=True)
-
-# ===== Build FAISS index =====
-print("🔧 Building FAISS index...")
 index = faiss.IndexFlatL2(embeddings.shape[1])
 index.add(embeddings)
 
-# ===== Save artifacts =====
+# ===== Save index and map =====
 faiss.write_index(index, INDEX_PATH)
 with open(UID_MAP_PATH, "w") as f:
     json.dump(uid_map, f)
 
-print(f"✅ Done. Saved index to {INDEX_PATH} and UIDs to {UID_MAP_PATH}")
+print(f"✅ Index saved to {INDEX_PATH}")

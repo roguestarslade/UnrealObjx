@@ -1,14 +1,31 @@
-VENV_DIR = .venv
-PYTHON = $(VENV_DIR)/bin/python
-PIP = $(VENV_DIR)/bin/pip
+build-container:
+	docker build --tag unrealobjx:latest .
 
-build-deps: deps
-	$(PYTHON) build_index.py
+build-container-verbose:
+	docker build \
+		--progress=plain \
+		--no-cache \
+		--pull \
+		--tag unrealobjx:latest .
 
-deps:
-	@if [ ! -f "$(PIP)" ]; then \
-		echo "🔧 Creating virtualenv..."; \
-		python3 -m venv $(VENV_DIR); \
-	fi && \
-	$(PIP) install --upgrade pip && \
-	$(PIP) install -r requirements.txt
+fetch:
+	docker run --rm \
+		-v $(CURDIR):/UnrealObjX \
+		-v $(CURDIR)/ObjaverseDownloads:/export \
+		unrealobjx fetch-internal PROMPT="$(PROMPT)"
+
+fetch-internal:
+	python fetch_prompt.py "$(PROMPT)"
+
+build-index:
+	docker run --rm \
+		-v $(CURDIR):/UnrealObjX \
+		unrealobjx build-index-internal
+
+build-index-internal:
+	python build_index.py
+	
+nuke-it-all:
+	docker container stop $$(docker container ls -aq) 2>/dev/null || true
+	docker system prune -a --volumes --force
+	docker builder prune --all --force
