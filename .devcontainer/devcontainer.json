@@ -1,0 +1,19 @@
+{
+  "name": "UnrealObjX",
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "context": ".."
+  },
+  "workspaceFolder": "/UnrealObjX",
+  "mounts": [
+    "source=${localEnv:HOME}/.ssh,target=/root/.ssh,type=bind,consistency=cached"
+  ],
+  "remoteEnv": {
+    "GIT_SSH_COMMAND": "ssh -o StrictHostKeyChecking=no"
+  },
+  "runArgs": [
+    "--cap-add=SYS_PTRACE",
+    "--security-opt", "seccomp=unconfined"
+  ],
+  "remoteUser": "root"
+}
